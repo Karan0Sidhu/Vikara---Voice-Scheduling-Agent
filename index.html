@@ -209,7 +209,7 @@ const TOKEN_KEY = 'vikara_gtoken';
 const SYSTEM = `You are Vikara, a friendly voice scheduling assistant. Book calendar events by collecting:
 1. User name
 2. Date (parse relative like "tomorrow", "next Monday" → YYYY-MM-DD, today is ${TODAY})
-3. Time (→ HH:MM 24h)
+3. Time (→ HH:MM 24h start, or HH:MM-HH:MM if end time is given)
 4. Meeting title (optional, default "Meeting")
 
 Rules: Be warm and concise (1-2 sentences). Ask for missing info naturally.
@@ -353,10 +353,16 @@ async function callGroq(userMsg) {
 
 // ─── Confirm card ─────────────────────────────────────────────────────────────
 function showConfirm() {
+  // Parse time range for display: 16:00-18:00 → 16:00 – 18:00
+  const rawTime = booking.time || '—';
+  const timeParts = rawTime.split('-');
+  const displayTime = timeParts.length === 2
+    ? timeParts[0].trim() + ' – ' + timeParts[1].trim()
+    : rawTime;
   document.getElementById('c-name').textContent = booking.name || '—';
   document.getElementById('c-title').textContent = booking.title || 'Meeting';
   document.getElementById('c-date').textContent = booking.date || '—';
-  document.getElementById('c-time').textContent = booking.time || '—';
+  document.getElementById('c-time').textContent = displayTime;
   document.getElementById('confirmCard').classList.add('visible');
 }
 function hideConfirm() { document.getElementById('confirmCard').classList.remove('visible'); }
