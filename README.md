@@ -96,6 +96,14 @@ Vikara uses Llama 3.1 via Groq — completely free, no credit card required.
 
 ---
 
+## Demo Video
+
+▶️ **[Watch on Loom](https://www.loom.com/share/REPLACE_WITH_YOUR_LOOM_ID)**
+
+> Replace the link above with your Loom share URL after recording.
+
+---
+
 ## Calendar Integration — How It Works
 
 Vikara integrates with Google Calendar using the **Google Calendar REST API v3** with an **OAuth 2.0 implicit flow** — no backend server required.
