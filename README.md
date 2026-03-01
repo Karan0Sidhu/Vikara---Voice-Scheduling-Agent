@@ -96,6 +96,47 @@ Vikara uses Llama 3.1 via Groq — completely free, no credit card required.
 
 ---
 
+## Calendar Integration — How It Works
+
+Vikara integrates with Google Calendar using the **Google Calendar REST API v3** with an **OAuth 2.0 implicit flow** — no backend server required.
+
+### Authentication Flow
+
+When the user clicks "Create Event", the app opens a Google OAuth popup requesting the `https://www.googleapis.com/auth/calendar.events` scope. This scope is the minimum required — it allows creating and editing events without access to other calendar data.
+
+Google redirects back to the app URL with an `access_token` in the URL hash fragment. The popup detects it has landed back on the same origin and posts the token to the parent window via `window.postMessage`. If the popup is blocked by the browser, the app falls back to a same-tab redirect — saving the pending booking to `sessionStorage` first, then restoring and completing the booking automatically once the user returns.
+
+The token is stored in `sessionStorage` so it persists across conversation resets within the same browser tab without requiring re-authorization.
+
+### Event Creation
+
+Once authenticated, the app makes a direct `POST` request to:
+
+```
+https://www.googleapis.com/calendar/v3/calendars/primary/events
+```
+
+The event payload is constructed from the details collected during the voice conversation:
+
+```json
+{
+  "summary": "Meeting title from conversation",
+  "description": "Scheduled via Vikara voice assistant",
+  "start": { "dateTime": "2026-03-02T15:00:00", "timeZone": "America/Toronto" },
+  "end":   { "dateTime": "2026-03-02T16:00:00", "timeZone": "America/Toronto" }
+}
+```
+
+The timezone is detected automatically from the user's browser using `Intl.DateTimeFormat().resolvedOptions().timeZone`, so events are always created in the user's local timezone. Events default to 1 hour in duration.
+
+On success, the Google Calendar API returns the created event object including an `htmlLink` — a direct link to view the event in Google Calendar, which is displayed to the user.
+
+### Why No Backend?
+
+The implicit OAuth flow and direct API calls from the browser mean there is no server, no token storage, and no credentials at risk. The access token lives only in `sessionStorage` for the duration of the tab session and is never sent anywhere except Google's own API endpoints.
+
+---
+
 ## Tech Stack
 
 | Layer | Technology |
