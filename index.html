@@ -298,15 +298,19 @@ async function googleCreate(){
   const cid=document.getElementById('googleClientId').value.trim();
   if(!cid){msg('error','Enter your Google OAuth Client ID.');return;}
   if(!gToken){
-    const origin=location.href.split('?')[0].split('#')[0];
-    const url=`https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(cid)}&redirect_uri=${encodeURIComponent(origin)}&response_type=token&scope=${encodeURIComponent('https://www.googleapis.com/auth/calendar.events')}`;
+    const redirectUri=location.origin+'/callback.html';
+    const url=`https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(cid)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=${encodeURIComponent('https://www.googleapis.com/auth/calendar.events')}`;
     const popup=window.open(url,'gcal','width=500,height=600');
     gToken=await new Promise((res,rej)=>{
-      const iv=setInterval(()=>{
-        try{if(popup.location.href.includes('access_token')){clearInterval(iv);res(new URLSearchParams(popup.location.href.split('#')[1]).get('access_token'));popup.close();}}catch(e){}
-        if(popup.closed){clearInterval(iv);rej(new Error('Popup closed'));}
-      },500);
-      setTimeout(()=>{clearInterval(iv);rej(new Error('Timeout'));},120000);
+      function onMsg(e){
+        if(e.data?.access_token){
+          window.removeEventListener('message',onMsg);
+          res(e.data.access_token);
+        }
+      }
+      window.addEventListener('message',onMsg);
+      const iv=setInterval(()=>{if(popup.closed){clearInterval(iv);window.removeEventListener('message',onMsg);rej(new Error('Popup closed'));}},500);
+      setTimeout(()=>{clearInterval(iv);window.removeEventListener('message',onMsg);rej(new Error('Timeout'));},120000);
     }).catch(e=>{msg('error',`Auth: ${e.message}`);return null;});
     if(!gToken)return;
   }
