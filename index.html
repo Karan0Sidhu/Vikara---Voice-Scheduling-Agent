@@ -173,7 +173,7 @@
     <div class="confirm-row"><span class="confirm-key">Date</span><span class="confirm-val" id="c-date">—</span></div>
     <div class="confirm-row"><span class="confirm-key">Time</span><span class="confirm-val" id="c-time">—</span></div>
     <div class="confirm-actions">
-      <button class="btn-confirm" onclick="createEvent()">Create Event ✓</button>
+      <button class="btn-confirm" onclick="bookCalendarEvent()">Create Event ✓</button>
       <button class="btn-cancel" onclick="restartConversation()">Start Over</button>
     </div>
   </div>
@@ -372,7 +372,7 @@ function showConfirm(){
 function hideConfirm(){document.getElementById('confirmCard').classList.remove('visible');}
 
 // ─── Calendar ─────────────────────────────────────────────────────────────────
-async function createEvent(){
+async function bookCalendarEvent(){
   const provider=document.getElementById('calProvider').value;
   if(provider==='demo'){
     hideConfirm();awaitingConfirm=false;
