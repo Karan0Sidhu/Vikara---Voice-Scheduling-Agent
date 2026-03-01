@@ -90,10 +90,20 @@
   @keyframes typingBounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-6px)} }
   .event-link { color:var(--accent); text-decoration:none; }
   .event-link:hover { text-decoration:underline; }
+  /* OAuth redirect handler overlay */
+  #oauth-overlay { display:none; position:fixed; inset:0; background:var(--bg); z-index:999; align-items:center; justify-content:center; flex-direction:column; gap:12px; font-size:.85rem; color:var(--muted); }
+  #oauth-overlay.visible { display:flex; }
 </style>
 </head>
 <body>
-<div class="container">
+
+<!-- This page also serves as the OAuth redirect target. The script below handles both cases. -->
+<div id="oauth-overlay">
+  <div style="font-family:'DM Serif Display',serif;font-size:1.8rem;background:linear-gradient(135deg,#7c6af7,#b8a4ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">SCHED</div>
+  <div>Completing Google authorization...</div>
+</div>
+
+<div class="container" id="app">
 
   <header>
     <div class="logo">SCHED</div>
@@ -123,6 +133,10 @@
     <div class="field-group" id="googleRow" style="display:none">
       <div class="field-label">Google OAuth Client ID</div>
       <input class="field-input" type="text" id="googleClientId" placeholder="xxxx.apps.googleusercontent.com">
+      <div class="hint" style="margin-top:4px">
+        ⚠️ Make sure <strong>this exact URL</strong> is added to <em>Authorized JavaScript Origins</em> in your Google Cloud Console OAuth Client:<br>
+        <strong id="originHint" style="color:var(--accent);word-break:break-all;"></strong>
+      </div>
     </div>
 
     <div class="hint">
@@ -130,8 +144,13 @@
       → <a href="https://console.groq.com" target="_blank">console.groq.com</a> → Sign up (free, no card) → API Keys → Create Key → paste above.<br>
       Uses <strong>Llama 3.1</strong> model. Free tier: 6,000 tokens/min, unlimited daily.<br><br>
       <strong>Step 2 — Voice:</strong> Browser built-in speech (Chrome/Edge). Completely free.<br><br>
-      <strong>Step 3 — Calendar:</strong> Demo Mode works instantly. For real Google Calendar events,<br>
-      go to <a href="https://console.cloud.google.com" target="_blank">Google Cloud Console</a> → New Project → Enable Calendar API → OAuth Client ID (Web) → add your site URL to authorized origins.
+      <strong>Step 3 — Google Calendar:</strong><br>
+      1. <a href="https://console.cloud.google.com" target="_blank">Google Cloud Console</a> → New Project<br>
+      2. APIs & Services → Enable APIs → search <strong>Google Calendar API</strong> → Enable<br>
+      3. APIs & Services → OAuth consent screen → External → fill app name → Save<br>
+      4. Credentials → Create Credentials → OAuth Client ID → <strong>Web Application</strong><br>
+      5. Add <strong>Authorized JavaScript Origins</strong>: paste the URL shown above when you select Google Calendar<br>
+      6. Copy Client ID → paste above
     </div>
 
     <button class="start-btn" onclick="startAgent()">Start Agent →</button>
@@ -171,8 +190,11 @@
 
 </div>
 <script>
+// ─── State ────────────────────────────────────────────────────────────────────
 let history=[], booking={name:null,date:null,time:null,title:null};
-let isListening=false, isSpeaking=false, recognition=null, utterance=null, awaitingConfirm=false, gToken=null;
+let isListening=false, isSpeaking=false, recognition=null, utterance=null;
+let awaitingConfirm=false, gToken=null;
+
 const TODAY=new Date().toISOString().split('T')[0];
 const SYSTEM=`You are SCHED, a friendly voice scheduling assistant. Book calendar events by collecting:
 1. User name
@@ -185,7 +207,53 @@ Once you have name+date+time, read back the details and ask "Does that look righ
 When confirmed, end your message with exactly:
 <booking>{"name":"...","date":"YYYY-MM-DD","time":"HH:MM","title":"..."}</booking>`;
 
-// UI
+// ─── OAuth Token Storage (sessionStorage for this tab) ────────────────────────
+const TOKEN_KEY = 'sched_gtoken';
+
+// ─── Handle OAuth redirect (token arrives in URL hash) ────────────────────────
+(function handleOAuthRedirect(){
+  const hash = window.location.hash;
+  if(!hash.includes('access_token')) return;
+  const params = new URLSearchParams(hash.replace(/^#/,''));
+  const token = params.get('access_token');
+  if(!token) return;
+
+  // Store token so the opener (or this tab if same-tab flow) can use it
+  try { sessionStorage.setItem(TOKEN_KEY, token); } catch(e){}
+
+  // If opened as popup — post message to opener then close
+  if(window.opener && !window.opener.closed){
+    try {
+      window.opener.postMessage({type:'GCAL_TOKEN', token}, window.location.origin);
+    } catch(e) {}
+    window.close();
+    return;
+  }
+
+  // Same-tab fallback: show overlay then redirect back to base URL
+  document.getElementById('oauth-overlay').classList.add('visible');
+  const base = window.location.origin + window.location.pathname;
+  setTimeout(()=>{ window.location.replace(base); }, 1000);
+})();
+
+// ─── Restore token if we came back from same-tab OAuth redirect ───────────────
+(function restoreToken(){
+  try {
+    const t = sessionStorage.getItem(TOKEN_KEY);
+    if(t) gToken = t;
+  } catch(e){}
+})();
+
+// ─── Listen for popup postMessage token ──────────────────────────────────────
+window.addEventListener('message', function(e){
+  if(e.origin !== window.location.origin) return;
+  if(e.data && e.data.type === 'GCAL_TOKEN'){
+    gToken = e.data.token;
+    try { sessionStorage.setItem(TOKEN_KEY, gToken); } catch(e2){}
+  }
+});
+
+// ─── UI helpers ───────────────────────────────────────────────────────────────
 function msg(role,html){
   const t=document.getElementById('transcript');
   const d=document.createElement('div'); d.className='msg';
@@ -204,13 +272,25 @@ function setStatus(s){
   document.getElementById('statusDot').className='status-dot '+s;
   document.getElementById('statusText').textContent={listening:'Listening',speaking:'Speaking',ready:'Ready','':'Setup'}[s]||s;
 }
-(function(){const wf=document.getElementById('waveform');for(let i=0;i<32;i++){const b=document.createElement('div');b.className='wave-bar';wf.appendChild(b);}})();
+
+// Waveform init
+(function(){
+  const wf=document.getElementById('waveform');
+  for(let i=0;i<32;i++){const b=document.createElement('div');b.className='wave-bar';wf.appendChild(b);}
+})();
+
 function setWave(on){document.querySelectorAll('.wave-bar').forEach(b=>b.className='wave-bar'+(on?' active':''));}
+
+// Show current origin for user to add to GCP
 document.getElementById('calProvider').addEventListener('change',function(){
-  document.getElementById('googleRow').style.display=this.value==='google'?'':'none';
+  const isGoogle = this.value==='google';
+  document.getElementById('googleRow').style.display = isGoogle?'':'none';
+  if(isGoogle){
+    document.getElementById('originHint').textContent = window.location.origin + window.location.pathname;
+  }
 });
 
-// TTS
+// ─── TTS ──────────────────────────────────────────────────────────────────────
 function speak(text,cb){
   if(utterance)window.speechSynthesis.cancel();
   setWave(false);setStatus('speaking');isSpeaking=true;
@@ -223,7 +303,7 @@ function speak(text,cb){
 }
 window.speechSynthesis.onvoiceschanged=()=>{};
 
-// STT
+// ─── STT ──────────────────────────────────────────────────────────────────────
 function startListening(){
   if(isSpeaking||isListening)return;
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
@@ -246,7 +326,7 @@ function toggleMic(){
   startListening();
 }
 
-// Groq (FREE)
+// ─── Groq LLM ─────────────────────────────────────────────────────────────────
 async function callGroq(userMsg){
   const key=document.getElementById('apiKey').value.trim();
   if(!key){msg('error','Enter your Groq API key above.');return;}
@@ -267,12 +347,21 @@ async function callGroq(userMsg){
     const bm=reply.match(/<booking>(.*?)<\/booking>/s);
     const display=reply.replace(/<booking>.*?<\/booking>/s,'').trim();
     msg('agent',display||reply);
-    if(bm){try{const p=JSON.parse(bm[1]);booking={...booking,...p};showConfirm();awaitingConfirm=true;speak(display||reply,null);return;}catch(e){}}
+    if(bm){
+      try{
+        const p=JSON.parse(bm[1]);
+        booking={...booking,...p};
+        showConfirm();
+        awaitingConfirm=true;
+        speak(display||reply,null);
+        return;
+      }catch(e){}
+    }
     speak(display||reply,()=>{if(!awaitingConfirm)setTimeout(()=>startListening(),300);});
   }catch(e){hideTyping();msg('error',`Groq error: ${e.message}`);setStatus('ready');}
 }
 
-// Confirm card
+// ─── Confirm card ─────────────────────────────────────────────────────────────
 function showConfirm(){
   document.getElementById('c-name').textContent=booking.name||'—';
   document.getElementById('c-title').textContent=booking.title||'Meeting';
@@ -282,12 +371,12 @@ function showConfirm(){
 }
 function hideConfirm(){document.getElementById('confirmCard').classList.remove('visible');}
 
-// Calendar
+// ─── Calendar ─────────────────────────────────────────────────────────────────
 async function createEvent(){
   const provider=document.getElementById('calProvider').value;
   if(provider==='demo'){
     hideConfirm();awaitingConfirm=false;
-    msg('system',`✅ <strong>Demo event booked!</strong> — ${booking.name} | ${booking.date} at ${booking.time} | "${booking.title||'Meeting'}"<br><em>Deploy &amp; connect Google Calendar to create real events.</em>`);
+    msg('system',`✅ <strong>Demo event booked!</strong> — ${booking.name} | ${booking.date} at ${booking.time} | "${booking.title||'Meeting'}"<br><em>Connect Google Calendar to create real events.</em>`);
     speak(`Done! "${booking.title||'Meeting'}" is booked for ${booking.date} at ${booking.time}. See you then, ${booking.name}!`);
     return;
   }
@@ -297,55 +386,181 @@ async function createEvent(){
 async function googleCreate(){
   const cid=document.getElementById('googleClientId').value.trim();
   if(!cid){msg('error','Enter your Google OAuth Client ID.');return;}
+
+  // ── Acquire token ────────────────────────────────────────────────────────
   if(!gToken){
-    const origin=location.href.split('?')[0].split('#')[0];
-    const url=`https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(cid)}&redirect_uri=${encodeURIComponent(origin)}&response_type=token&scope=${encodeURIComponent('https://www.googleapis.com/auth/calendar.events')}`;
-    const popup=window.open(url,'gcal','width=500,height=600');
-    gToken=await new Promise((res,rej)=>{
-      const iv=setInterval(()=>{
-        try{if(popup.location.href.includes('access_token')){clearInterval(iv);res(new URLSearchParams(popup.location.href.split('#')[1]).get('access_token'));popup.close();}}catch(e){}
-        if(popup.closed){clearInterval(iv);rej(new Error('Popup closed'));}
-      },500);
-      setTimeout(()=>{clearInterval(iv);rej(new Error('Timeout'));},120000);
-    }).catch(e=>{msg('error',`Auth: ${e.message}`);return null;});
-    if(!gToken)return;
-  }
-  const tz=Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const [h,m]=(booking.time||'09:00').split(':').map(Number);
-  const body={
-    summary:booking.title||`Meeting with ${booking.name}`,
-    description:'Scheduled via SCHED voice assistant',
-    start:{dateTime:`${booking.date}T${booking.time}:00`,timeZone:tz},
-    end:{dateTime:`${booking.date}T${String(h+1).padStart(2,'0')}:${String(m).padStart(2,'0')}:00`,timeZone:tz}
-  };
-  try{
-    const r=await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events',{
-      method:'POST',headers:{'Authorization':`Bearer ${gToken}`,'Content-Type':'application/json'},body:JSON.stringify(body)
+    const redirectUri = window.location.origin + window.location.pathname;
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth`
+      + `?client_id=${encodeURIComponent(cid)}`
+      + `&redirect_uri=${encodeURIComponent(redirectUri)}`
+      + `&response_type=token`
+      + `&scope=${encodeURIComponent('https://www.googleapis.com/auth/calendar.events')}`
+      + `&prompt=consent`;
+
+    // Try popup first
+    let tokenFromPopup = null;
+    tokenFromPopup = await new Promise((res) => {
+      let popup;
+      try { popup = window.open(authUrl, 'gcal_auth', 'width=520,height=620,left=200,top=100'); } catch(e){}
+
+      if(!popup || popup.closed || typeof popup.closed === 'undefined'){
+        // Popups blocked — fall back to same-tab redirect
+        res(null);
+        return;
+      }
+
+      // Listen for postMessage from the popup (when it lands back on this origin)
+      const msgHandler = (e) => {
+        if(e.origin !== window.location.origin) return;
+        if(e.data && e.data.type === 'GCAL_TOKEN'){
+          window.removeEventListener('message', msgHandler);
+          clearInterval(iv);
+          res(e.data.token);
+        }
+      };
+      window.addEventListener('message', msgHandler);
+
+      // Poll as fallback in case postMessage doesn't fire
+      const iv = setInterval(()=>{
+        try{
+          if(popup.closed){
+            window.removeEventListener('message', msgHandler);
+            clearInterval(iv);
+            // Check sessionStorage in case same-tab redirect set it
+            try{ const t=sessionStorage.getItem(TOKEN_KEY); if(t){gToken=t;res(t);return;} }catch(e2){}
+            res(null); // popup closed without token
+          }
+        }catch(e){}
+      }, 500);
+
+      setTimeout(()=>{
+        window.removeEventListener('message', msgHandler);
+        clearInterval(iv);
+        res(null);
+      }, 180000);
     });
-    if(!r.ok)throw new Error((await r.json()).error?.message);
-    const ev=await r.json();
-    hideConfirm();awaitingConfirm=false;
-    msg('system',`✅ Google Calendar event created! <a class="event-link" href="${ev.htmlLink}" target="_blank">View →</a>`);
-    speak(`Your event is on Google Calendar — ${booking.date} at ${booking.time}. Have a great meeting, ${booking.name}!`);
-  }catch(e){msg('error',`Calendar: ${e.message}`);}
+
+    if(tokenFromPopup){
+      gToken = tokenFromPopup;
+      try{ sessionStorage.setItem(TOKEN_KEY, gToken); }catch(e){}
+    } else if(!gToken){
+      // Same-tab redirect fallback: save state and redirect
+      try{
+        sessionStorage.setItem('sched_pending_booking', JSON.stringify(booking));
+        sessionStorage.setItem('sched_api_key', document.getElementById('apiKey').value.trim());
+        sessionStorage.setItem('sched_client_id', cid);
+      }catch(e){}
+      window.location.href = authUrl;
+      return;
+    }
+  }
+
+  // ── Create event with token ───────────────────────────────────────────────
+  await _doCreateCalendarEvent();
 }
 
-// Start / Reset
+async function _doCreateCalendarEvent(){
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const [h,m] = (booking.time||'09:00').split(':').map(Number);
+  const endH = String(h+1).padStart(2,'0');
+  const endM = String(m).padStart(2,'0');
+
+  const body = {
+    summary: booking.title||`Meeting with ${booking.name}`,
+    description: 'Scheduled via SCHED voice assistant',
+    start: { dateTime:`${booking.date}T${booking.time}:00`, timeZone:tz },
+    end:   { dateTime:`${booking.date}T${endH}:${endM}:00`, timeZone:tz }
+  };
+
+  try{
+    const r = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events',{
+      method:'POST',
+      headers:{'Authorization':`Bearer ${gToken}`,'Content-Type':'application/json'},
+      body: JSON.stringify(body)
+    });
+
+    if(r.status === 401){
+      // Token expired — clear and retry
+      gToken=null;
+      try{ sessionStorage.removeItem(TOKEN_KEY); }catch(e){}
+      msg('error','Auth expired. Please click "Create Event" again to re-authorize.');
+      return;
+    }
+
+    if(!r.ok){
+      const err = await r.json();
+      throw new Error(err.error?.message || `HTTP ${r.status}`);
+    }
+
+    const ev = await r.json();
+    hideConfirm();
+    awaitingConfirm=false;
+    msg('system',`✅ Google Calendar event created! <a class="event-link" href="${ev.htmlLink}" target="_blank">View event →</a>`);
+    speak(`Your event is on Google Calendar — ${booking.date} at ${booking.time}. Have a great meeting, ${booking.name}!`);
+  }catch(e){
+    msg('error',`Calendar error: ${e.message}`);
+  }
+}
+
+// ─── Restore pending booking after same-tab OAuth redirect ───────────────────
+(function restorePendingBooking(){
+  try{
+    const pending = sessionStorage.getItem('sched_pending_booking');
+    const savedKey = sessionStorage.getItem('sched_api_key');
+    const savedCid = sessionStorage.getItem('sched_client_id');
+    if(!pending || !gToken) return;
+
+    sessionStorage.removeItem('sched_pending_booking');
+    sessionStorage.removeItem('sched_api_key');
+    sessionStorage.removeItem('sched_client_id');
+
+    booking = JSON.parse(pending);
+    if(savedKey) document.getElementById('apiKey').value = savedKey;
+    if(savedCid){
+      document.getElementById('googleClientId').value = savedCid;
+      document.getElementById('calProvider').value = 'google';
+      document.getElementById('googleRow').style.display = '';
+    }
+
+    // Hide setup, show UI, then auto-create the event
+    document.getElementById('setupPanel').classList.add('hidden');
+    document.getElementById('controls').style.display='flex';
+    setStatus('ready');
+    msg('system','✅ Authorized! Creating your calendar event...');
+    setTimeout(()=>_doCreateCalendarEvent(), 800);
+  }catch(e){}
+})();
+
+// ─── Start / Reset ────────────────────────────────────────────────────────────
 function startAgent(){
   const key=document.getElementById('apiKey').value.trim();
-  if(!key){document.getElementById('apiKey').style.borderColor='var(--error)';document.getElementById('apiKey').focus();return;}
+  if(!key){
+    document.getElementById('apiKey').style.borderColor='var(--error)';
+    document.getElementById('apiKey').focus();
+    return;
+  }
   document.getElementById('apiKey').style.borderColor='';
   document.getElementById('setupPanel').classList.add('hidden');
   document.getElementById('controls').style.display='flex';
-  const g="Hi! I'm SCHED, your voice scheduling assistant. Let's book a meeting. What's your name?";
-  msg('agent',g);speak(g,()=>setTimeout(()=>startListening(),300));setStatus('ready');
+  const g="Hi! I'm SCHED, your voice scheduling assistant. Let's book a meeting — what's your name?";
+  msg('agent',g);
+  speak(g,()=>setTimeout(()=>startListening(),300));
+  setStatus('ready');
 }
+
 function restartConversation(){
-  history=[];booking={name:null,date:null,time:null,title:null};awaitingConfirm=false;gToken=null;
-  hideConfirm();stopListening();if(utterance){window.speechSynthesis.cancel();isSpeaking=false;}
+  history=[];
+  booking={name:null,date:null,time:null,title:null};
+  awaitingConfirm=false;
+  // Don't clear gToken — keep auth alive across resets
+  hideConfirm();
+  stopListening();
+  if(utterance){window.speechSynthesis.cancel();isSpeaking=false;}
   document.getElementById('transcript').innerHTML='';
   const g="Let's start over. What's your name?";
-  msg('agent',g);speak(g,()=>setTimeout(()=>startListening(),300));setStatus('ready');
+  msg('agent',g);
+  speak(g,()=>setTimeout(()=>startListening(),300));
+  setStatus('ready');
 }
 </script>
 </body>
