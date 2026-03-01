@@ -1,8 +1,0 @@
-<!DOCTYPE html>
-<html>
-<script>
-  const token = new URLSearchParams(location.hash.slice(1)).get('access_token');
-  if (token) window.opener.postMessage({ access_token: token }, location.origin);
-  window.close();
-</script>
-</html>
