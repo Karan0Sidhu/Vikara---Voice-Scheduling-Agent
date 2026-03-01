@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SCHED — Voice Calendar Assistant</title>
+<title>Vikara — Voice Scheduling Agent</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
@@ -14,12 +14,16 @@
     --muted: #6b6880; --success: #22c55e; --error: #ef4444;
     --glow: rgba(124,106,247,0.15);
   }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body { background:var(--bg); color:var(--text); font-family:'DM Mono',monospace; min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; overflow-x:hidden; position:relative; }
   body::before { content:''; position:fixed; inset:0; background-image:linear-gradient(rgba(124,106,247,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(124,106,247,0.04) 1px,transparent 1px); background-size:60px 60px; animation:gridDrift 20s linear infinite; pointer-events:none; }
   @keyframes gridDrift { 0%{transform:translateY(0)} 100%{transform:translateY(60px)} }
   body::after { content:''; position:fixed; width:600px; height:600px; border-radius:50%; background:radial-gradient(circle,rgba(124,106,247,0.07) 0%,transparent 70%); top:50%; left:50%; transform:translate(-50%,-50%); pointer-events:none; animation:orbPulse 4s ease-in-out infinite; }
   @keyframes orbPulse { 0%,100%{transform:translate(-50%,-50%) scale(1);opacity:.6} 50%{transform:translate(-50%,-50%) scale(1.1);opacity:1} }
+
   .container { position:relative; z-index:10; width:100%; max-width:680px; padding:24px; display:flex; flex-direction:column; gap:18px; }
+
+  /* Header */
   header { display:flex; align-items:baseline; gap:12px; border-bottom:1px solid var(--border); padding-bottom:16px; }
   .logo { font-family:'DM Serif Display',serif; font-size:2.2rem; letter-spacing:-.02em; background:linear-gradient(135deg,var(--accent),#b8a4ff); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
   .logo-sub { font-size:.7rem; color:var(--muted); letter-spacing:.15em; text-transform:uppercase; }
@@ -29,20 +33,23 @@
   .status-dot.speaking { background:var(--accent2); animation:blink .5s ease-in-out infinite; }
   .status-dot.ready { background:var(--success); }
   @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
+
+  /* Setup panel */
   .setup-panel { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; display:flex; flex-direction:column; gap:14px; }
   .setup-panel.hidden { display:none; }
   .setup-title { font-size:.65rem; letter-spacing:.15em; text-transform:uppercase; color:var(--muted); }
-  .free-badge { display:inline-block; background:rgba(34,197,94,.12); color:var(--success); border:1px solid rgba(34,197,94,.25); border-radius:4px; padding:1px 7px; font-size:.6rem; letter-spacing:.1em; text-transform:uppercase; margin-left:6px; vertical-align:middle; }
   .field-group { display:flex; flex-direction:column; gap:6px; }
   .field-label { font-size:.7rem; color:var(--muted); letter-spacing:.08em; text-transform:uppercase; }
   .field-input { background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:10px 14px; color:var(--text); font-family:'DM Mono',monospace; font-size:.85rem; outline:none; transition:border-color .2s; width:100%; }
   .field-input:focus { border-color:var(--accent); }
   .field-input::placeholder { color:var(--muted); }
-  .hint { font-size:.68rem; color:var(--muted); line-height:1.8; }
-  .hint a { color:var(--accent); text-decoration:none; }
-  .hint a:hover { text-decoration:underline; }
-  .hint strong { color:var(--text); }
+  .field-hint { font-size:.68rem; color:var(--muted); line-height:1.6; margin-top:2px; }
+  .field-hint a { color:var(--accent); text-decoration:none; }
+  .field-hint a:hover { text-decoration:underline; }
   select.field-input { appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%236b6880' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14L2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 14px center; padding-right:36px; }
+  .origin-hint { font-size:.68rem; color:var(--accent); word-break:break-all; margin-top:4px; }
+
+  /* Transcript */
   .transcript-panel { background:var(--surface); border:1px solid var(--border); border-radius:12px; overflow:hidden; min-height:260px; max-height:320px; display:flex; flex-direction:column; }
   .transcript-header { padding:10px 16px; border-bottom:1px solid var(--border); font-size:.65rem; letter-spacing:.15em; text-transform:uppercase; color:var(--muted); }
   .transcript-body { flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:10px; scroll-behavior:smooth; }
@@ -56,6 +63,23 @@
   .msg-tag.system { background:rgba(34,197,94,.1); color:var(--success); }
   .msg-tag.error { background:rgba(239,68,68,.1); color:var(--error); }
   .msg-text { font-size:.82rem; line-height:1.6; color:var(--text); flex:1; }
+  .event-link { color:var(--accent); text-decoration:none; }
+  .event-link:hover { text-decoration:underline; }
+
+  /* Confirm card */
+  .confirm-card { background:rgba(124,106,247,.06); border:1px solid rgba(124,106,247,.25); border-radius:12px; padding:16px 20px; display:none; flex-direction:column; gap:8px; }
+  .confirm-card.visible { display:flex; animation:msgIn .4s ease; }
+  .confirm-title { font-size:.65rem; letter-spacing:.15em; text-transform:uppercase; color:var(--accent); margin-bottom:4px; }
+  .confirm-row { display:flex; gap:12px; align-items:baseline; }
+  .confirm-key { font-size:.7rem; color:var(--muted); width:80px; flex-shrink:0; }
+  .confirm-val { font-size:.85rem; color:var(--text); }
+  .confirm-actions { display:flex; gap:10px; margin-top:8px; }
+  .btn-confirm { background:var(--success); color:#000; border:none; border-radius:6px; padding:8px 18px; font-family:'DM Mono',monospace; font-size:.75rem; letter-spacing:.08em; text-transform:uppercase; cursor:pointer; transition:opacity .2s; }
+  .btn-confirm:hover { opacity:.85; }
+  .btn-secondary { background:transparent; color:var(--muted); border:1px solid var(--border); border-radius:6px; padding:8px 18px; font-family:'DM Mono',monospace; font-size:.75rem; letter-spacing:.08em; text-transform:uppercase; cursor:pointer; transition:all .2s; }
+  .btn-secondary:hover { border-color:var(--muted); color:var(--text); }
+
+  /* Controls */
   .controls { display:flex; align-items:center; gap:16px; }
   .mic-btn { position:relative; width:64px; height:64px; border-radius:50%; border:2px solid var(--border); background:var(--surface); cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all .2s; flex-shrink:0; outline:none; }
   .mic-btn:hover { border-color:var(--accent); box-shadow:0 0 20px var(--glow); }
@@ -66,106 +90,86 @@
   @keyframes ripple { 0%{transform:scale(1);opacity:.3} 100%{transform:scale(1.3);opacity:0} }
   .mic-icon { fill:var(--muted); transition:fill .2s; }
   .waveform { flex:1; height:40px; display:flex; align-items:center; gap:3px; }
-  .wave-bar { width:3px; border-radius:2px; background:var(--border); height:4px; }
+  .wave-bar { width:3px; border-radius:2px; background:var(--border); height:4px; transition:height .1s; }
   .wave-bar.active { background:var(--accent); animation:waveDance .6s ease-in-out infinite; }
   .wave-bar:nth-child(2n).active { animation-delay:.1s; }
   .wave-bar:nth-child(3n).active { animation-delay:.2s; }
   @keyframes waveDance { 0%,100%{height:4px} 50%{height:24px} }
-  .start-btn { background:linear-gradient(135deg,var(--accent),#9b8aff); color:white; border:none; border-radius:8px; padding:12px 24px; font-family:'DM Mono',monospace; font-size:.8rem; letter-spacing:.08em; text-transform:uppercase; cursor:pointer; transition:all .2s; }
+  .start-btn { background:linear-gradient(135deg,var(--accent),#9b8aff); color:white; border:none; border-radius:8px; padding:12px 24px; font-family:'DM Mono',monospace; font-size:.8rem; letter-spacing:.08em; text-transform:uppercase; cursor:pointer; transition:all .2s; white-space:nowrap; }
   .start-btn:hover { transform:translateY(-1px); box-shadow:0 8px 24px rgba(124,106,247,.3); }
-  .confirm-card { background:rgba(124,106,247,.06); border:1px solid rgba(124,106,247,.25); border-radius:12px; padding:16px 20px; display:none; flex-direction:column; gap:8px; }
-  .confirm-card.visible { display:flex; animation:msgIn .4s ease; }
-  .confirm-title { font-size:.65rem; letter-spacing:.15em; text-transform:uppercase; color:var(--accent); margin-bottom:4px; }
-  .confirm-row { display:flex; gap:12px; align-items:baseline; }
-  .confirm-key { font-size:.7rem; color:var(--muted); width:80px; flex-shrink:0; }
-  .confirm-val { font-size:.85rem; color:var(--text); }
-  .confirm-actions { display:flex; gap:10px; margin-top:8px; }
-  .btn-confirm { background:var(--success); color:#000; border:none; border-radius:6px; padding:8px 18px; font-family:'DM Mono',monospace; font-size:.75rem; letter-spacing:.08em; text-transform:uppercase; cursor:pointer; }
-  .btn-confirm:hover { opacity:.85; }
-  .btn-cancel { background:transparent; color:var(--muted); border:1px solid var(--border); border-radius:6px; padding:8px 18px; font-family:'DM Mono',monospace; font-size:.75rem; letter-spacing:.08em; text-transform:uppercase; cursor:pointer; }
-  .btn-cancel:hover { border-color:var(--muted); color:var(--text); }
+
+  /* Typing indicator */
   .typing-indicator { display:flex; gap:4px; align-items:center; padding:6px 0; }
   .typing-dot { width:5px; height:5px; border-radius:50%; background:var(--muted); animation:typingBounce 1.2s ease-in-out infinite; }
   .typing-dot:nth-child(2){animation-delay:.2s} .typing-dot:nth-child(3){animation-delay:.4s}
   @keyframes typingBounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-6px)} }
-  .event-link { color:var(--accent); text-decoration:none; }
-  .event-link:hover { text-decoration:underline; }
-  /* OAuth redirect handler overlay */
+
+
+
+  /* OAuth overlay */
   #oauth-overlay { display:none; position:fixed; inset:0; background:var(--bg); z-index:999; align-items:center; justify-content:center; flex-direction:column; gap:12px; font-size:.85rem; color:var(--muted); }
   #oauth-overlay.visible { display:flex; }
+  #oauth-overlay .overlay-logo { font-family:'DM Serif Display',serif; font-size:1.8rem; background:linear-gradient(135deg,#7c6af7,#b8a4ff); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
 </style>
 </head>
 <body>
 
-<!-- This page also serves as the OAuth redirect target. The script below handles both cases. -->
 <div id="oauth-overlay">
-  <div style="font-family:'DM Serif Display',serif;font-size:1.8rem;background:linear-gradient(135deg,#7c6af7,#b8a4ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">SCHED</div>
+  <div class="overlay-logo">Vikara</div>
   <div>Completing Google authorization...</div>
 </div>
 
 <div class="container" id="app">
 
   <header>
-    <div class="logo">SCHED</div>
-    <div class="logo-sub">Voice Calendar Agent</div>
+    <div class="logo">Vikara</div>
+    <div class="logo-sub">Voice Scheduling Agent</div>
     <div class="status-pill">
       <div class="status-dot" id="statusDot"></div>
       <span id="statusText">Setup</span>
     </div>
   </header>
 
+  <!-- Setup -->
   <div class="setup-panel" id="setupPanel">
-    <div class="setup-title">Configuration <span class="free-badge">100% Free</span></div>
+    <div class="setup-title">Configuration</div>
 
     <div class="field-group">
-      <div class="field-label">Groq API Key <span class="free-badge">Free — no credit card</span></div>
+      <div class="field-label">Groq API Key</div>
       <input class="field-input" type="password" id="apiKey" placeholder="gsk_...">
+      <div class="field-hint">Free at <a href="https://console.groq.com" target="_blank">console.groq.com</a> — no credit card required.</div>
     </div>
 
     <div class="field-group">
-      <div class="field-label">Calendar</div>
+      <div class="field-label">Calendar Provider</div>
       <select class="field-input" id="calProvider">
-        <option value="demo">Demo Mode (full flow, no real event)</option>
-        <option value="google">Google Calendar (free OAuth)</option>
+        <option value="demo">Demo Mode (no real event created)</option>
+        <option value="google">Google Calendar</option>
       </select>
     </div>
 
     <div class="field-group" id="googleRow" style="display:none">
       <div class="field-label">Google OAuth Client ID</div>
       <input class="field-input" type="text" id="googleClientId" placeholder="xxxx.apps.googleusercontent.com">
-      <div class="hint" style="margin-top:4px">
-        ⚠️ Make sure <strong>this exact URL</strong> is added to <em>Authorized JavaScript Origins</em> in your Google Cloud Console OAuth Client:<br>
-        <strong id="originHint" style="color:var(--accent);word-break:break-all;"></strong>
-      </div>
-    </div>
-
-    <div class="hint">
-      <strong>Step 1 — Free LLM (Groq):</strong><br>
-      → <a href="https://console.groq.com" target="_blank">console.groq.com</a> → Sign up (free, no card) → API Keys → Create Key → paste above.<br>
-      Uses <strong>Llama 3.1</strong> model. Free tier: 6,000 tokens/min, unlimited daily.<br><br>
-      <strong>Step 2 — Voice:</strong> Browser built-in speech (Chrome/Edge). Completely free.<br><br>
-      <strong>Step 3 — Google Calendar:</strong><br>
-      1. <a href="https://console.cloud.google.com" target="_blank">Google Cloud Console</a> → New Project<br>
-      2. APIs & Services → Enable APIs → search <strong>Google Calendar API</strong> → Enable<br>
-      3. APIs & Services → OAuth consent screen → External → fill app name → Save<br>
-      4. Credentials → Create Credentials → OAuth Client ID → <strong>Web Application</strong><br>
-      5. Add <strong>Authorized JavaScript Origins</strong>: paste the URL shown above when you select Google Calendar<br>
-      6. Copy Client ID → paste above
+      <div class="field-hint">Add the URL below to <em>Authorized JavaScript Origins</em> in Google Cloud Console:</div>
+      <div class="origin-hint" id="originHint"></div>
     </div>
 
     <button class="start-btn" onclick="startAgent()">Start Agent →</button>
   </div>
 
+  <!-- Conversation log -->
   <div class="transcript-panel">
     <div class="transcript-header">● conversation log</div>
     <div class="transcript-body" id="transcript">
       <div class="msg">
         <span class="msg-tag system">sys</span>
-        <span class="msg-text">Get your <strong>free</strong> Groq API key at <strong>console.groq.com</strong> (no credit card), paste it above, then hit Start Agent.</span>
+        <span class="msg-text">Enter your Groq API key above and hit <strong>Start Agent</strong> to begin. See the README for setup instructions.</span>
       </div>
     </div>
   </div>
 
+  <!-- Booking confirmation -->
   <div class="confirm-card" id="confirmCard">
     <div class="confirm-title">Confirm Booking</div>
     <div class="confirm-row"><span class="confirm-key">Name</span><span class="confirm-val" id="c-name">—</span></div>
@@ -174,10 +178,11 @@
     <div class="confirm-row"><span class="confirm-key">Time</span><span class="confirm-val" id="c-time">—</span></div>
     <div class="confirm-actions">
       <button class="btn-confirm" onclick="bookCalendarEvent()">Create Event ✓</button>
-      <button class="btn-cancel" onclick="restartConversation()">Start Over</button>
+      <button class="btn-secondary" onclick="restartConversation()">Start Over</button>
     </div>
   </div>
 
+  <!-- Mic controls -->
   <div class="controls" id="controls" style="display:none">
     <button class="mic-btn" id="micBtn" onclick="toggleMic()" title="Click to speak">
       <svg class="mic-icon" width="24" height="24" viewBox="0 0 24 24">
@@ -188,17 +193,22 @@
     <button class="start-btn" onclick="restartConversation()">Reset</button>
   </div>
 
+
+
 </div>
+
 <script>
 // ─── State ────────────────────────────────────────────────────────────────────
-let history=[], booking={name:null,date:null,time:null,title:null};
-let isListening=false, isSpeaking=false, recognition=null, utterance=null;
-let awaitingConfirm=false, gToken=null;
+let history = [], booking = { name:null, date:null, time:null, title:null };
+let isListening = false, isSpeaking = false, recognition = null, utterance = null;
+let awaitingConfirm = false, gToken = null;
 
-const TODAY=new Date().toISOString().split('T')[0];
-const SYSTEM=`You are SCHED, a friendly voice scheduling assistant. Book calendar events by collecting:
+const TODAY = new Date().toISOString().split('T')[0];
+const TOKEN_KEY = 'vikara_gtoken';
+
+const SYSTEM = `You are Vikara, a friendly voice scheduling assistant. Book calendar events by collecting:
 1. User name
-2. Date (parse relative like "tomorrow","next Monday" → YYYY-MM-DD, today is ${TODAY})
+2. Date (parse relative like "tomorrow", "next Monday" → YYYY-MM-DD, today is ${TODAY})
 3. Time (→ HH:MM 24h)
 4. Meeting title (optional, default "Meeting")
 
@@ -207,188 +217,165 @@ Once you have name+date+time, read back the details and ask "Does that look righ
 When confirmed, end your message with exactly:
 <booking>{"name":"...","date":"YYYY-MM-DD","time":"HH:MM","title":"..."}</booking>`;
 
-// ─── OAuth Token Storage (sessionStorage for this tab) ────────────────────────
-const TOKEN_KEY = 'sched_gtoken';
-
-// ─── Handle OAuth redirect (token arrives in URL hash) ────────────────────────
-(function handleOAuthRedirect(){
+// ─── OAuth redirect handler ───────────────────────────────────────────────────
+(function handleOAuthRedirect() {
   const hash = window.location.hash;
-  if(!hash.includes('access_token')) return;
-  const params = new URLSearchParams(hash.replace(/^#/,''));
+  if (!hash.includes('access_token')) return;
+  const params = new URLSearchParams(hash.replace(/^#/, ''));
   const token = params.get('access_token');
-  if(!token) return;
-
-  // Store token so the opener (or this tab if same-tab flow) can use it
-  try { sessionStorage.setItem(TOKEN_KEY, token); } catch(e){}
-
-  // If opened as popup — post message to opener then close
-  if(window.opener && !window.opener.closed){
-    try {
-      window.opener.postMessage({type:'GCAL_TOKEN', token}, window.location.origin);
-    } catch(e) {}
+  if (!token) return;
+  try { sessionStorage.setItem(TOKEN_KEY, token); } catch(e) {}
+  if (window.opener && !window.opener.closed) {
+    try { window.opener.postMessage({ type:'VIKARA_TOKEN', token }, window.location.origin); } catch(e) {}
     window.close();
     return;
   }
-
-  // Same-tab fallback: show overlay then redirect back to base URL
   document.getElementById('oauth-overlay').classList.add('visible');
-  const base = window.location.origin + window.location.pathname;
-  setTimeout(()=>{ window.location.replace(base); }, 1000);
+  setTimeout(() => window.location.replace(window.location.origin + window.location.pathname), 1000);
 })();
 
-// ─── Restore token if we came back from same-tab OAuth redirect ───────────────
-(function restoreToken(){
-  try {
-    const t = sessionStorage.getItem(TOKEN_KEY);
-    if(t) gToken = t;
-  } catch(e){}
+// Restore token from sessionStorage
+(function() {
+  try { const t = sessionStorage.getItem(TOKEN_KEY); if (t) gToken = t; } catch(e) {}
 })();
 
-// ─── Listen for popup postMessage token ──────────────────────────────────────
-window.addEventListener('message', function(e){
-  if(e.origin !== window.location.origin) return;
-  if(e.data && e.data.type === 'GCAL_TOKEN'){
+// Listen for popup token message
+window.addEventListener('message', e => {
+  if (e.origin !== window.location.origin) return;
+  if (e.data?.type === 'VIKARA_TOKEN') {
     gToken = e.data.token;
-    try { sessionStorage.setItem(TOKEN_KEY, gToken); } catch(e2){}
+    try { sessionStorage.setItem(TOKEN_KEY, gToken); } catch(e2) {}
   }
 });
 
-// ─── UI helpers ───────────────────────────────────────────────────────────────
-function msg(role,html){
-  const t=document.getElementById('transcript');
-  const d=document.createElement('div'); d.className='msg';
-  const tags={agent:'SCHED',user:'YOU',system:'SYS',error:'ERR'};
-  d.innerHTML=`<span class="msg-tag ${role}">${tags[role]||role}</span><span class="msg-text">${html}</span>`;
-  t.appendChild(d); t.scrollTop=t.scrollHeight;
+// ─── UI ───────────────────────────────────────────────────────────────────────
+function msg(role, html) {
+  const t = document.getElementById('transcript');
+  const d = document.createElement('div'); d.className = 'msg';
+  const tags = { agent:'VIKARA', user:'YOU', system:'SYS', error:'ERR' };
+  d.innerHTML = `<span class="msg-tag ${role}">${tags[role]||role}</span><span class="msg-text">${html}</span>`;
+  t.appendChild(d); t.scrollTop = t.scrollHeight;
 }
-function showTyping(){
-  const t=document.getElementById('transcript');
-  const d=document.createElement('div'); d.className='msg'; d.id='typing';
-  d.innerHTML=`<span class="msg-tag agent">SCHED</span><div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>`;
-  t.appendChild(d); t.scrollTop=t.scrollHeight;
+function showTyping() {
+  const t = document.getElementById('transcript');
+  const d = document.createElement('div'); d.className = 'msg'; d.id = 'typing';
+  d.innerHTML = `<span class="msg-tag agent">VIKARA</span><div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>`;
+  t.appendChild(d); t.scrollTop = t.scrollHeight;
 }
-function hideTyping(){const e=document.getElementById('typing');if(e)e.remove();}
-function setStatus(s){
-  document.getElementById('statusDot').className='status-dot '+s;
-  document.getElementById('statusText').textContent={listening:'Listening',speaking:'Speaking',ready:'Ready','':'Setup'}[s]||s;
+function hideTyping() { document.getElementById('typing')?.remove(); }
+function setStatus(s) {
+  document.getElementById('statusDot').className = 'status-dot ' + s;
+  document.getElementById('statusText').textContent = { listening:'Listening', speaking:'Speaking', ready:'Ready', '':'Setup' }[s] || s;
 }
 
-// Waveform init
-(function(){
-  const wf=document.getElementById('waveform');
-  for(let i=0;i<32;i++){const b=document.createElement('div');b.className='wave-bar';wf.appendChild(b);}
+// Waveform
+(function() {
+  const wf = document.getElementById('waveform');
+  for (let i = 0; i < 32; i++) { const b = document.createElement('div'); b.className = 'wave-bar'; wf.appendChild(b); }
 })();
+function setWave(on) { document.querySelectorAll('.wave-bar').forEach(b => b.className = 'wave-bar' + (on ? ' active' : '')); }
 
-function setWave(on){document.querySelectorAll('.wave-bar').forEach(b=>b.className='wave-bar'+(on?' active':''));}
-
-// Show current origin for user to add to GCP
-document.getElementById('calProvider').addEventListener('change',function(){
-  const isGoogle = this.value==='google';
-  document.getElementById('googleRow').style.display = isGoogle?'':'none';
-  if(isGoogle){
-    document.getElementById('originHint').textContent = window.location.origin + window.location.pathname;
-  }
+// Show origin hint when Google Calendar selected
+document.getElementById('calProvider').addEventListener('change', function() {
+  const isGoogle = this.value === 'google';
+  document.getElementById('googleRow').style.display = isGoogle ? '' : 'none';
+  if (isGoogle) document.getElementById('originHint').textContent = window.location.origin + window.location.pathname;
 });
 
 // ─── TTS ──────────────────────────────────────────────────────────────────────
-function speak(text,cb){
-  if(utterance)window.speechSynthesis.cancel();
-  setWave(false);setStatus('speaking');isSpeaking=true;
-  const u=new SpeechSynthesisUtterance(text);u.rate=1.05;
-  const vs=window.speechSynthesis.getVoices();
-  const v=vs.find(v=>v.name.includes('Google')&&v.lang.startsWith('en'))||vs.find(v=>v.lang.startsWith('en-US'))||vs[0];
-  if(v)u.voice=v;
-  u.onend=u.onerror=()=>{isSpeaking=false;setStatus('ready');if(cb)cb();};
-  utterance=u;window.speechSynthesis.speak(u);
+function speak(text, cb) {
+  if (utterance) window.speechSynthesis.cancel();
+  setWave(false); setStatus('speaking'); isSpeaking = true;
+  const u = new SpeechSynthesisUtterance(text); u.rate = 1.05;
+  const vs = window.speechSynthesis.getVoices();
+  const v = vs.find(v => v.name.includes('Google') && v.lang.startsWith('en')) || vs.find(v => v.lang.startsWith('en-US')) || vs[0];
+  if (v) u.voice = v;
+  u.onend = u.onerror = () => { isSpeaking = false; setStatus('ready'); if (cb) cb(); };
+  utterance = u; window.speechSynthesis.speak(u);
 }
-window.speechSynthesis.onvoiceschanged=()=>{};
 
 // ─── STT ──────────────────────────────────────────────────────────────────────
-function startListening(){
-  if(isSpeaking||isListening)return;
-  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!SR){msg('error','Speech recognition needs Chrome or Edge.');return;}
-  recognition=new SR();recognition.lang='en-US';recognition.interimResults=false;
-  recognition.onstart=()=>{isListening=true;setStatus('listening');setWave(true);document.getElementById('micBtn').classList.add('active');};
-  recognition.onresult=e=>{const t=e.results[0][0].transcript;stopListening();msg('user',t);callGroq(t);};
-  recognition.onerror=e=>{stopListening();if(e.error!=='no-speech'&&e.error!=='aborted')msg('error',`Mic: ${e.error}`);};
-  recognition.onend=()=>stopListening();
+function startListening() {
+  if (isSpeaking || isListening) return;
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { msg('error', 'Speech recognition requires Chrome or Edge.'); return; }
+  recognition = new SR(); recognition.lang = 'en-US'; recognition.interimResults = false;
+  recognition.onstart = () => { isListening = true; setStatus('listening'); setWave(true); document.getElementById('micBtn').classList.add('active'); };
+  recognition.onresult = e => { const t = e.results[0][0].transcript; stopListening(); msg('user', t); callGroq(t); };
+  recognition.onerror = e => { stopListening(); if (e.error !== 'no-speech' && e.error !== 'aborted') msg('error', `Mic: ${e.error}`); };
+  recognition.onend = () => stopListening();
   recognition.start();
 }
-function stopListening(){
-  isListening=false;setWave(false);setStatus('ready');
+function stopListening() {
+  isListening = false; setWave(false); setStatus('ready');
   document.getElementById('micBtn').classList.remove('active');
-  if(recognition){try{recognition.stop();}catch(e){}recognition=null;}
+  if (recognition) { try { recognition.stop(); } catch(e) {} recognition = null; }
 }
-function toggleMic(){
-  if(isSpeaking){window.speechSynthesis.cancel();isSpeaking=false;setStatus('ready');}
-  if(isListening){stopListening();return;}
+function toggleMic() {
+  if (isSpeaking) { window.speechSynthesis.cancel(); isSpeaking = false; setStatus('ready'); }
+  if (isListening) { stopListening(); return; }
   startListening();
 }
 
-// ─── Groq LLM ─────────────────────────────────────────────────────────────────
-async function callGroq(userMsg){
-  const key=document.getElementById('apiKey').value.trim();
-  if(!key){msg('error','Enter your Groq API key above.');return;}
-  history.push({role:'user',content:userMsg});
+// ─── Groq ─────────────────────────────────────────────────────────────────────
+async function callGroq(userMsg) {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { msg('error', 'Enter your Groq API key above.'); return; }
+  history.push({ role:'user', content:userMsg });
   showTyping();
-  try{
-    const r=await fetch('https://api.groq.com/openai/v1/chat/completions',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':`Bearer ${key}`},
-      body:JSON.stringify({model:'llama-3.1-8b-instant',max_tokens:300,temperature:0.7,
-        messages:[{role:'system',content:SYSTEM},...history]})
+  try {
+    const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', 'Authorization':`Bearer ${key}` },
+      body: JSON.stringify({ model:'llama-3.1-8b-instant', max_tokens:300, temperature:0.7,
+        messages: [{ role:'system', content:SYSTEM }, ...history] })
     });
-    if(!r.ok){const e=await r.json();throw new Error(e.error?.message||`HTTP ${r.status}`);}
-    const d=await r.json();
-    const reply=d.choices[0].message.content;
-    history.push({role:'assistant',content:reply});
+    if (!r.ok) { const e = await r.json(); throw new Error(e.error?.message || `HTTP ${r.status}`); }
+    const d = await r.json();
+    const reply = d.choices[0].message.content;
+    history.push({ role:'assistant', content:reply });
     hideTyping();
-    const bm=reply.match(/<booking>(.*?)<\/booking>/s);
-    const display=reply.replace(/<booking>.*?<\/booking>/s,'').trim();
-    msg('agent',display||reply);
-    if(bm){
-      try{
-        const p=JSON.parse(bm[1]);
-        booking={...booking,...p};
-        showConfirm();
-        awaitingConfirm=true;
-        speak(display||reply,null);
+    const bm = reply.match(/<booking>(.*?)<\/booking>/s);
+    const display = reply.replace(/<booking>.*?<\/booking>/s, '').trim();
+    msg('agent', display || reply);
+    if (bm) {
+      try {
+        const p = JSON.parse(bm[1]);
+        booking = { ...booking, ...p };
+        showConfirm(); awaitingConfirm = true;
+        speak(display || reply, null);
         return;
-      }catch(e){}
+      } catch(e) {}
     }
-    speak(display||reply,()=>{if(!awaitingConfirm)setTimeout(()=>startListening(),300);});
-  }catch(e){hideTyping();msg('error',`Groq error: ${e.message}`);setStatus('ready');}
+    speak(display || reply, () => { if (!awaitingConfirm) setTimeout(() => startListening(), 300); });
+  } catch(e) { hideTyping(); msg('error', `Groq error: ${e.message}`); setStatus('ready'); }
 }
 
 // ─── Confirm card ─────────────────────────────────────────────────────────────
-function showConfirm(){
-  document.getElementById('c-name').textContent=booking.name||'—';
-  document.getElementById('c-title').textContent=booking.title||'Meeting';
-  document.getElementById('c-date').textContent=booking.date||'—';
-  document.getElementById('c-time').textContent=booking.time||'—';
+function showConfirm() {
+  document.getElementById('c-name').textContent = booking.name || '—';
+  document.getElementById('c-title').textContent = booking.title || 'Meeting';
+  document.getElementById('c-date').textContent = booking.date || '—';
+  document.getElementById('c-time').textContent = booking.time || '—';
   document.getElementById('confirmCard').classList.add('visible');
 }
-function hideConfirm(){document.getElementById('confirmCard').classList.remove('visible');}
+function hideConfirm() { document.getElementById('confirmCard').classList.remove('visible'); }
 
 // ─── Calendar ─────────────────────────────────────────────────────────────────
-async function bookCalendarEvent(){
-  const provider=document.getElementById('calProvider').value;
-  if(provider==='demo'){
-    hideConfirm();awaitingConfirm=false;
-    msg('system',`✅ <strong>Demo event booked!</strong> — ${booking.name} | ${booking.date} at ${booking.time} | "${booking.title||'Meeting'}"<br><em>Connect Google Calendar to create real events.</em>`);
-    speak(`Done! "${booking.title||'Meeting'}" is booked for ${booking.date} at ${booking.time}. See you then, ${booking.name}!`);
+async function bookCalendarEvent() {
+  if (document.getElementById('calProvider').value === 'demo') {
+    hideConfirm(); awaitingConfirm = false;
+    msg('system', `✅ <strong>Demo event booked!</strong> — ${booking.name} | ${booking.date} at ${booking.time} | "${booking.title || 'Meeting'}"<br><em>Switch to Google Calendar to create real events.</em>`);
+    speak(`Done! "${booking.title || 'Meeting'}" is booked for ${booking.date} at ${booking.time}. See you then, ${booking.name}!`);
     return;
   }
-  if(provider==='google') await googleCreate();
+  await googleCreate();
 }
 
-async function googleCreate(){
-  const cid=document.getElementById('googleClientId').value.trim();
-  if(!cid){msg('error','Enter your Google OAuth Client ID.');return;}
-
-  // ── Acquire token ────────────────────────────────────────────────────────
-  if(!gToken){
+async function googleCreate() {
+  const cid = document.getElementById('googleClientId').value.trim();
+  if (!cid) { msg('error', 'Enter your Google OAuth Client ID.'); return; }
+  if (!gToken) {
     const redirectUri = window.location.origin + window.location.pathname;
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth`
       + `?client_id=${encodeURIComponent(cid)}`
@@ -397,171 +384,122 @@ async function googleCreate(){
       + `&scope=${encodeURIComponent('https://www.googleapis.com/auth/calendar.events')}`
       + `&prompt=consent`;
 
-    // Try popup first
-    let tokenFromPopup = null;
-    tokenFromPopup = await new Promise((res) => {
+    const tokenFromPopup = await new Promise(res => {
       let popup;
-      try { popup = window.open(authUrl, 'gcal_auth', 'width=520,height=620,left=200,top=100'); } catch(e){}
+      try { popup = window.open(authUrl, 'vikara_auth', 'width=520,height=620,left=200,top=100'); } catch(e) {}
+      if (!popup || popup.closed) { res(null); return; }
 
-      if(!popup || popup.closed || typeof popup.closed === 'undefined'){
-        // Popups blocked — fall back to same-tab redirect
-        res(null);
-        return;
-      }
-
-      // Listen for postMessage from the popup (when it lands back on this origin)
-      const msgHandler = (e) => {
-        if(e.origin !== window.location.origin) return;
-        if(e.data && e.data.type === 'GCAL_TOKEN'){
+      const msgHandler = e => {
+        if (e.origin !== window.location.origin) return;
+        if (e.data?.type === 'VIKARA_TOKEN') {
           window.removeEventListener('message', msgHandler);
-          clearInterval(iv);
-          res(e.data.token);
+          clearInterval(iv); res(e.data.token);
         }
       };
       window.addEventListener('message', msgHandler);
 
-      // Poll as fallback in case postMessage doesn't fire
-      const iv = setInterval(()=>{
-        try{
-          if(popup.closed){
-            window.removeEventListener('message', msgHandler);
-            clearInterval(iv);
-            // Check sessionStorage in case same-tab redirect set it
-            try{ const t=sessionStorage.getItem(TOKEN_KEY); if(t){gToken=t;res(t);return;} }catch(e2){}
-            res(null); // popup closed without token
+      const iv = setInterval(() => {
+        try {
+          if (popup.closed) {
+            window.removeEventListener('message', msgHandler); clearInterval(iv);
+            try { const t = sessionStorage.getItem(TOKEN_KEY); if (t) { res(t); return; } } catch(e2) {}
+            res(null);
           }
-        }catch(e){}
+        } catch(e) {}
       }, 500);
 
-      setTimeout(()=>{
-        window.removeEventListener('message', msgHandler);
-        clearInterval(iv);
-        res(null);
-      }, 180000);
+      setTimeout(() => { window.removeEventListener('message', msgHandler); clearInterval(iv); res(null); }, 180000);
     });
 
-    if(tokenFromPopup){
+    if (tokenFromPopup) {
       gToken = tokenFromPopup;
-      try{ sessionStorage.setItem(TOKEN_KEY, gToken); }catch(e){}
-    } else if(!gToken){
-      // Same-tab redirect fallback: save state and redirect
-      try{
-        sessionStorage.setItem('sched_pending_booking', JSON.stringify(booking));
-        sessionStorage.setItem('sched_api_key', document.getElementById('apiKey').value.trim());
-        sessionStorage.setItem('sched_client_id', cid);
-      }catch(e){}
+      try { sessionStorage.setItem(TOKEN_KEY, gToken); } catch(e) {}
+    } else if (!gToken) {
+      try {
+        sessionStorage.setItem('vikara_pending', JSON.stringify(booking));
+        sessionStorage.setItem('vikara_key', document.getElementById('apiKey').value.trim());
+        sessionStorage.setItem('vikara_cid', cid);
+      } catch(e) {}
       window.location.href = authUrl;
       return;
     }
   }
-
-  // ── Create event with token ───────────────────────────────────────────────
-  await _doCreateCalendarEvent();
+  await doCreateEvent();
 }
 
-async function _doCreateCalendarEvent(){
+async function doCreateEvent() {
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const [h,m] = (booking.time||'09:00').split(':').map(Number);
-  const endH = String(h+1).padStart(2,'0');
-  const endM = String(m).padStart(2,'0');
-
+  const [h, m] = (booking.time || '09:00').split(':').map(Number);
   const body = {
-    summary: booking.title||`Meeting with ${booking.name}`,
-    description: 'Scheduled via SCHED voice assistant',
+    summary: booking.title || `Meeting with ${booking.name}`,
+    description: 'Scheduled via Vikara voice assistant',
     start: { dateTime:`${booking.date}T${booking.time}:00`, timeZone:tz },
-    end:   { dateTime:`${booking.date}T${endH}:${endM}:00`, timeZone:tz }
+    end:   { dateTime:`${booking.date}T${String(h+1).padStart(2,'0')}:${String(m).padStart(2,'0')}:00`, timeZone:tz }
   };
-
-  try{
-    const r = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events',{
-      method:'POST',
-      headers:{'Authorization':`Bearer ${gToken}`,'Content-Type':'application/json'},
+  try {
+    const r = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+      method: 'POST',
+      headers: { 'Authorization':`Bearer ${gToken}`, 'Content-Type':'application/json' },
       body: JSON.stringify(body)
     });
-
-    if(r.status === 401){
-      // Token expired — clear and retry
-      gToken=null;
-      try{ sessionStorage.removeItem(TOKEN_KEY); }catch(e){}
-      msg('error','Auth expired. Please click "Create Event" again to re-authorize.');
+    if (r.status === 401) {
+      gToken = null; try { sessionStorage.removeItem(TOKEN_KEY); } catch(e) {}
+      msg('error', 'Auth expired — click Create Event again to re-authorize.');
       return;
     }
-
-    if(!r.ok){
-      const err = await r.json();
-      throw new Error(err.error?.message || `HTTP ${r.status}`);
-    }
-
+    if (!r.ok) { const err = await r.json(); throw new Error(err.error?.message || `HTTP ${r.status}`); }
     const ev = await r.json();
-    hideConfirm();
-    awaitingConfirm=false;
-    msg('system',`✅ Google Calendar event created! <a class="event-link" href="${ev.htmlLink}" target="_blank">View event →</a>`);
+    hideConfirm(); awaitingConfirm = false;
+    msg('system', `✅ Google Calendar event created! <a class="event-link" href="${ev.htmlLink}" target="_blank">View event →</a>`);
     speak(`Your event is on Google Calendar — ${booking.date} at ${booking.time}. Have a great meeting, ${booking.name}!`);
-  }catch(e){
-    msg('error',`Calendar error: ${e.message}`);
-  }
+  } catch(e) { msg('error', `Calendar error: ${e.message}`); }
 }
 
-// ─── Restore pending booking after same-tab OAuth redirect ───────────────────
-(function restorePendingBooking(){
-  try{
-    const pending = sessionStorage.getItem('sched_pending_booking');
-    const savedKey = sessionStorage.getItem('sched_api_key');
-    const savedCid = sessionStorage.getItem('sched_client_id');
-    if(!pending || !gToken) return;
-
-    sessionStorage.removeItem('sched_pending_booking');
-    sessionStorage.removeItem('sched_api_key');
-    sessionStorage.removeItem('sched_client_id');
-
+// Restore pending booking after same-tab OAuth redirect
+(function() {
+  try {
+    const pending = sessionStorage.getItem('vikara_pending');
+    const savedKey = sessionStorage.getItem('vikara_key');
+    const savedCid = sessionStorage.getItem('vikara_cid');
+    if (!pending || !gToken) return;
+    sessionStorage.removeItem('vikara_pending');
+    sessionStorage.removeItem('vikara_key');
+    sessionStorage.removeItem('vikara_cid');
     booking = JSON.parse(pending);
-    if(savedKey) document.getElementById('apiKey').value = savedKey;
-    if(savedCid){
+    if (savedKey) document.getElementById('apiKey').value = savedKey;
+    if (savedCid) {
       document.getElementById('googleClientId').value = savedCid;
       document.getElementById('calProvider').value = 'google';
       document.getElementById('googleRow').style.display = '';
     }
-
-    // Hide setup, show UI, then auto-create the event
     document.getElementById('setupPanel').classList.add('hidden');
-    document.getElementById('controls').style.display='flex';
+    document.getElementById('controls').style.display = 'flex';
     setStatus('ready');
-    msg('system','✅ Authorized! Creating your calendar event...');
-    setTimeout(()=>_doCreateCalendarEvent(), 800);
-  }catch(e){}
+    msg('system', '✅ Authorized! Creating your calendar event...');
+    setTimeout(() => doCreateEvent(), 800);
+  } catch(e) {}
 })();
 
 // ─── Start / Reset ────────────────────────────────────────────────────────────
-function startAgent(){
-  const key=document.getElementById('apiKey').value.trim();
-  if(!key){
-    document.getElementById('apiKey').style.borderColor='var(--error)';
-    document.getElementById('apiKey').focus();
-    return;
-  }
-  document.getElementById('apiKey').style.borderColor='';
+function startAgent() {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { document.getElementById('apiKey').style.borderColor = 'var(--error)'; document.getElementById('apiKey').focus(); return; }
+  document.getElementById('apiKey').style.borderColor = '';
   document.getElementById('setupPanel').classList.add('hidden');
-  document.getElementById('controls').style.display='flex';
-  const g="Hi! I'm SCHED, your voice scheduling assistant. Let's book a meeting — what's your name?";
-  msg('agent',g);
-  speak(g,()=>setTimeout(()=>startListening(),300));
-  setStatus('ready');
+  document.getElementById('controls').style.display = 'flex';
+  const g = "Hi! I'm Vikara, your voice scheduling assistant. Let's book a meeting — what's your name?";
+  msg('agent', g); speak(g, () => setTimeout(() => startListening(), 300)); setStatus('ready');
+}
+function restartConversation() {
+  history = []; booking = { name:null, date:null, time:null, title:null }; awaitingConfirm = false;
+  hideConfirm(); stopListening();
+  if (utterance) { window.speechSynthesis.cancel(); isSpeaking = false; }
+  document.getElementById('transcript').innerHTML = '';
+  const g = "Let's start over. What's your name?";
+  msg('agent', g); speak(g, () => setTimeout(() => startListening(), 300)); setStatus('ready');
 }
 
-function restartConversation(){
-  history=[];
-  booking={name:null,date:null,time:null,title:null};
-  awaitingConfirm=false;
-  // Don't clear gToken — keep auth alive across resets
-  hideConfirm();
-  stopListening();
-  if(utterance){window.speechSynthesis.cancel();isSpeaking=false;}
-  document.getElementById('transcript').innerHTML='';
-  const g="Let's start over. What's your name?";
-  msg('agent',g);
-  speak(g,()=>setTimeout(()=>startListening(),300));
-  setStatus('ready');
-}
+
 </script>
 </body>
 </html>
