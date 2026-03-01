@@ -429,12 +429,17 @@ async function googleCreate() {
 
 async function doCreateEvent() {
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const [h, m] = (booking.time || '09:00').split(':').map(Number);
+  const timeParts = (booking.time || '09:00').split('-');
+  const startTime = timeParts[0].trim();
+  const endTime = timeParts[1]
+    ? timeParts[1].trim()
+    : (() => { const [h,m] = startTime.split(':').map(Number); return String(h+1).padStart(2,'0') + ':' + String(m).padStart(2,'0'); })();
+  booking.time = startTime;
   const body = {
     summary: booking.title || `Meeting with ${booking.name}`,
     description: 'Scheduled via Vikara voice assistant',
-    start: { dateTime:`${booking.date}T${booking.time}:00`, timeZone:tz },
-    end:   { dateTime:`${booking.date}T${String(h+1).padStart(2,'0')}:${String(m).padStart(2,'0')}:00`, timeZone:tz }
+    start: { dateTime:`${booking.date}T${startTime}:00`, timeZone:tz },
+    end:   { dateTime:`${booking.date}T${endTime}:00`, timeZone:tz }
   };
   try {
     const r = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
