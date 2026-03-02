@@ -1,17 +1,25 @@
 # Vikara — Voice Scheduling Agent
 
-A real-time voice assistant that books Google Calendar events through natural conversation. Just speak your name, preferred date & time, and meeting title — Vikara handles the rest.
+A real-time voice assistant that books Google Calendar events through natural conversation. Just speak your name, preferred date, start and end time, and meeting title — Vikara handles the rest.
 
 **Live demo:** https://karan0sidhu.github.io/Vikara---Voice-Scheduling-Agent/
+
+---
+
+## Demo Video
+
+[![Watch the demo](https://cdn.loom.com/sessions/thumbnails/42bd693cf2234c30b5c678511a99877f-with-play.gif)](https://www.loom.com/share/42bd693cf2234c30b5c678511a99877f)
+
+▶️ **[Watch on Loom](https://www.loom.com/share/42bd693cf2234c30b5c678511a99877f)**
 
 ---
 
 ## How It Works
 
 1. Click **Start Agent** and speak naturally
-2. Vikara asks for your name, date, time, and meeting title
-3. It reads back the details for confirmation
-4. Confirms and creates a real Google Calendar event
+2. Vikara asks for your name, date, start time, end time, and meeting title
+3. It reads back the full details for confirmation
+4. Confirms and creates a real Google Calendar event with the correct start and end time
 
 ---
 
@@ -88,18 +96,11 @@ Vikara uses Llama 3.1 via Groq — completely free, no credit card required.
 5. Click **Start Agent →**
 6. Click the microphone button and speak naturally:
    - *"My name is Karan"*
-   - *"Let's meet tomorrow at 3pm"*
+   - *"Let's meet Monday from 4 to 6"*
    - *"Call it Product Sync"*
-7. Vikara will confirm the details — click **Create Event ✓**
+7. Vikara confirms the details including start and end time — click **Create Event ✓**
 8. A Google OAuth popup will appear — sign in and allow access
 9. The event is created and you'll see a **View event →** link
-
----
-
-## Demo Video
-
-▶️ **[Watch on Loom]([https://www.loom.com/share/REPLACE_WITH_YOUR_LOOM_ID](https://www.loom.com/share/42bd693cf2234c30b5c678511a99877f))**
-
 
 ---
 
@@ -123,18 +124,18 @@ Once authenticated, the app makes a direct `POST` request to:
 https://www.googleapis.com/calendar/v3/calendars/primary/events
 ```
 
-The event payload is constructed from the details collected during the voice conversation:
+The event payload is constructed from the details collected during the voice conversation. Start and end times are tracked as separate fields — if the user specifies a range like "4 to 6", both times are captured and used directly. If only a start time is given, the end time defaults to +1 hour automatically.
 
 ```json
 {
-  "summary": "Meeting title from conversation",
+  "summary": "Product Sync",
   "description": "Scheduled via Vikara voice assistant",
-  "start": { "dateTime": "2026-03-02T15:00:00", "timeZone": "America/Toronto" },
-  "end":   { "dateTime": "2026-03-02T16:00:00", "timeZone": "America/Toronto" }
+  "start": { "dateTime": "2026-03-07T16:00:00", "timeZone": "America/Toronto" },
+  "end":   { "dateTime": "2026-03-07T18:00:00", "timeZone": "America/Toronto" }
 }
 ```
 
-The timezone is detected automatically from the user's browser using `Intl.DateTimeFormat().resolvedOptions().timeZone`, so events are always created in the user's local timezone. Events default to 1 hour in duration.
+The timezone is detected automatically from the user's browser using `Intl.DateTimeFormat().resolvedOptions().timeZone`, so events are always created in the user's local timezone.
 
 On success, the Google Calendar API returns the created event object including an `htmlLink` — a direct link to view the event in Google Calendar, which is displayed to the user.
 
