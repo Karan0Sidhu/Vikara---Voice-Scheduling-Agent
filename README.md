@@ -98,7 +98,7 @@ Vikara uses Llama 3.1 via Groq — completely free, no credit card required.
 
 ## Demo Video
 
-▶️ **[Watch on Loom](https://www.loom.com/share/REPLACE_WITH_YOUR_LOOM_ID)**
+▶️ **[Watch on Loom]([https://www.loom.com/share/REPLACE_WITH_YOUR_LOOM_ID](https://www.loom.com/share/42bd693cf2234c30b5c678511a99877f))**
 
 > Replace the link above with your Loom share URL after recording.
 
