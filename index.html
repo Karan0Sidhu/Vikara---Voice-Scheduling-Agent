@@ -199,7 +199,7 @@
 
 <script>
 // ─── State ────────────────────────────────────────────────────────────────────
-let history = [], booking = { name:null, date:null, time:null, title:null };
+let history = [], booking = { name:null, date:null, startTime:null, endTime:null, title:null };
 let isListening = false, isSpeaking = false, recognition = null, utterance = null;
 let awaitingConfirm = false, gToken = null;
 
@@ -209,13 +209,17 @@ const TOKEN_KEY = 'vikara_gtoken';
 const SYSTEM = `You are Vikara, a friendly voice scheduling assistant. Book calendar events by collecting:
 1. User name
 2. Date (parse relative like "tomorrow", "next Monday" → YYYY-MM-DD, today is ${TODAY})
-3. Time (→ HH:MM 24h start, or HH:MM-HH:MM if end time is given)
-4. Meeting title (optional, default "Meeting")
+3. Start time (→ HH:MM 24h)
+4. End time (→ HH:MM 24h, default is start time + 1 hour if not given)
+5. Meeting title (optional, default "Meeting")
 
 Rules: Be warm and concise (1-2 sentences). Ask for missing info naturally.
-Once you have name+date+time, read back the details and ask "Does that look right?"
-When confirmed, end your message with exactly:
-<booking>{"name":"...","date":"YYYY-MM-DD","time":"HH:MM","title":"..."}</booking>`;
+Once you have name+date+startTime, read back the details and ask "Does that look right?"
+When confirmed, end your message with exactly this JSON tag — always include all 5 fields:
+<booking>{"name":"...","date":"YYYY-MM-DD","startTime":"HH:MM","endTime":"HH:MM","title":"..."}</booking>
+
+IMPORTANT: name is the person's name, title is the meeting title. Keep them separate.
+IMPORTANT: always output the <booking> tag when the user confirms, even if some details seem unclear.`;
 
 // ─── OAuth redirect handler ───────────────────────────────────────────────────
 (function handleOAuthRedirect() {
@@ -353,12 +357,9 @@ async function callGroq(userMsg) {
 
 // ─── Confirm card ─────────────────────────────────────────────────────────────
 function showConfirm() {
-  // Parse time range for display: 16:00-18:00 → 16:00 – 18:00
-  const rawTime = booking.time || '—';
-  const timeParts = rawTime.split('-');
-  const displayTime = timeParts.length === 2
-    ? timeParts[0].trim() + ' – ' + timeParts[1].trim()
-    : rawTime;
+  const start = booking.startTime || '—';
+  const end = booking.endTime || '—';
+  const displayTime = (start !== '—' && end !== '—') ? start + ' – ' + end : start;
   document.getElementById('c-name').textContent = booking.name || '—';
   document.getElementById('c-title').textContent = booking.title || 'Meeting';
   document.getElementById('c-date').textContent = booking.date || '—';
@@ -371,8 +372,8 @@ function hideConfirm() { document.getElementById('confirmCard').classList.remove
 async function bookCalendarEvent() {
   if (document.getElementById('calProvider').value === 'demo') {
     hideConfirm(); awaitingConfirm = false;
-    msg('system', `✅ <strong>Demo event booked!</strong> — ${booking.name} | ${booking.date} at ${booking.time} | "${booking.title || 'Meeting'}"<br><em>Switch to Google Calendar to create real events.</em>`);
-    speak(`Done! "${booking.title || 'Meeting'}" is booked for ${booking.date} at ${booking.time}. See you then, ${booking.name}!`);
+    msg('system', `✅ <strong>Demo event booked!</strong> — ${booking.name} | ${booking.date} ${booking.startTime}–${booking.endTime} | "${booking.title || 'Meeting'}"<br><em>Switch to Google Calendar to create real events.</em>`);
+    speak(`Done! "${booking.title || 'Meeting'}" is booked for ${booking.date} from ${booking.startTime} to ${booking.endTime}. See you then, ${booking.name}!`);
     return;
   }
   await googleCreate();
@@ -435,12 +436,11 @@ async function googleCreate() {
 
 async function doCreateEvent() {
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const timeParts = (booking.time || '09:00').split('-');
-  const startTime = timeParts[0].trim();
-  const endTime = timeParts[1]
-    ? timeParts[1].trim()
-    : (() => { const [h,m] = startTime.split(':').map(Number); return String(h+1).padStart(2,'0') + ':' + String(m).padStart(2,'0'); })();
-  booking.time = startTime;
+  const startTime = booking.startTime || '09:00';
+  const endTime = booking.endTime || (() => {
+    const [h,m] = startTime.split(':').map(Number);
+    return String(h+1).padStart(2,'0') + ':' + String(m).padStart(2,'0');
+  })();
   const body = {
     summary: booking.title || `Meeting with ${booking.name}`,
     description: 'Scheduled via Vikara voice assistant',
@@ -462,7 +462,7 @@ async function doCreateEvent() {
     const ev = await r.json();
     hideConfirm(); awaitingConfirm = false;
     msg('system', `✅ Google Calendar event created! <a class="event-link" href="${ev.htmlLink}" target="_blank">View event →</a>`);
-    speak(`Your event is on Google Calendar — ${booking.date} at ${booking.time}. Have a great meeting, ${booking.name}!`);
+    speak(`Your event is on Google Calendar — ${booking.date} from ${booking.startTime} to ${booking.endTime}. Have a great meeting, ${booking.name}!`);
   } catch(e) { msg('error', `Calendar error: ${e.message}`); }
 }
 
@@ -502,7 +502,7 @@ function startAgent() {
   msg('agent', g); speak(g, () => setTimeout(() => startListening(), 300)); setStatus('ready');
 }
 function restartConversation() {
-  history = []; booking = { name:null, date:null, time:null, title:null }; awaitingConfirm = false;
+  history = []; booking = { name:null, date:null, startTime:null, endTime:null, title:null }; awaitingConfirm = false;
   hideConfirm(); stopListening();
   if (utterance) { window.speechSynthesis.cancel(); isSpeaking = false; }
   document.getElementById('transcript').innerHTML = '';
